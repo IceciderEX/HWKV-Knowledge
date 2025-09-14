@@ -1,0 +1,9 @@
+*.docx
+*.xlsx
+*.pptx
+
+/.vscode
+
+*.tmp
+*.pdf
+*.png
