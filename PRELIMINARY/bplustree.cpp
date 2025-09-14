@@ -311,7 +311,6 @@ public:
         auto parent = node->parent;
         size_t node_index = std::find(parent->children.begin(), parent->children.end(), node) - parent->children.begin();
         // 1. 如果和左兄弟合并
-        if (node->)
     }
 
     void handle_overflow(Node<KeyType, ValueType>* node) {
@@ -329,72 +328,72 @@ public:
         auto sibling = find_sibling(node);
         // 这个过程需要更新父节点中的索引键。优先尝试此操作，因为它对树结构的改动较小。
         // a. 检查左兄弟节点
-        if (node->prev != nullptr && node->parent == node->prev->parent && node->prev->key_count > (TREE_ORDER - 1) / 2) {
-            // 从左兄弟节点借一个键值对
-            auto left_sibling = node->prev;
-            auto borrow_key = left_sibling->keys[left_sibling->key_count - 1];
-            auto borrow_value = left_sibling->values[left_sibling->key_count - 1];
+        // if (node->prev != nullptr && node->parent == node->prev->parent && node->prev->key_count > (TREE_ORDER - 1) / 2) {
+        //     // 从左兄弟节点借一个键值对
+        //     auto left_sibling = node->prev;
+        //     auto borrow_key = left_sibling->keys[left_sibling->key_count - 1];
+        //     auto borrow_value = left_sibling->values[left_sibling->key_count - 1];
 
-            for(size_t i = node->key_count; i > 0; --i) {
-                node->keys[i] = node->keys[i - 1];
-                node->values[i] = node->values[i - 1];
-            }
-            node->keys[0] = borrow_key;
-            node->values[0] = borrow_value;
-            left_sibling->key_count--;
-            node->key_count++;
+        //     for(size_t i = node->key_count; i > 0; --i) {
+        //         node->keys[i] = node->keys[i - 1];
+        //         node->values[i] = node->values[i - 1];
+        //     }
+        //     node->keys[0] = borrow_key;
+        //     node->values[0] = borrow_value;
+        //     left_sibling->key_count--;
+        //     node->key_count++;
 
-            // 更新父节点中的索引键
-            auto parent = leaf_node->parent;
-            parent->keys[parent->key_count - 1] = borrow_key;
-        }   // b. 检查右兄弟节点 
-        else if (leaf_node->next != nullptr && leaf_node->parent == leaf_node->next->parent && leaf_node->next->key_count > (TREE_ORDER - 1) / 2) {
-            // 从右兄弟节点借一个键值对
-            auto right_sibling = leaf_node->next;
-            auto borrow_key = right_sibling->keys[0];
-            auto borrow_value = right_sibling->values[0];
+        //     // 更新父节点中的索引键
+        //     auto parent = leaf_node->parent;
+        //     parent->keys[parent->key_count - 1] = borrow_key;
+        // }   // b. 检查右兄弟节点 
+        // else if (leaf_node->next != nullptr && leaf_node->parent == leaf_node->next->parent && leaf_node->next->key_count > (TREE_ORDER - 1) / 2) {
+        //     // 从右兄弟节点借一个键值对
+        //     auto right_sibling = leaf_node->next;
+        //     auto borrow_key = right_sibling->keys[0];
+        //     auto borrow_value = right_sibling->values[0];
 
-            for(size_t i = 0; i < right_sibling->key_count - 1; ++i) {
-                right_sibling->keys[i] = right_sibling->keys[i + 1];
-                right_sibling->values[i] = right_sibling->values[i + 1];
-            }
-            leaf_node->keys[leaf_node->key_count] = borrow_key;
-            leaf_node->values[leaf_node->key_count] = borrow_value;
-            right_sibling->key_count--;
-            leaf_node->key_count++;
+        //     for(size_t i = 0; i < right_sibling->key_count - 1; ++i) {
+        //         right_sibling->keys[i] = right_sibling->keys[i + 1];
+        //         right_sibling->values[i] = right_sibling->values[i + 1];
+        //     }
+        //     leaf_node->keys[leaf_node->key_count] = borrow_key;
+        //     leaf_node->values[leaf_node->key_count] = borrow_value;
+        //     right_sibling->key_count--;
+        //     leaf_node->key_count++;
 
-            // 更新父节点中的索引键
-            auto parent = leaf_node->parent;
-            parent->keys[parent->key_count - 1] = borrow_key;
-        }   
+        //     // 更新父节点中的索引键
+        //     auto parent = leaf_node->parent;
+        //     parent->keys[parent->key_count - 1] = borrow_key;
+        // }   
 
-        // 4. 如果兄弟节点也处于最小键数量，需要进行合并（Merge）
-        // 合并当前节点和兄弟节点，将当前节点的键值对全部移动到兄弟节点，然后删除当前节点。
-        // 这个过程需要更新父节点中的索引键，“拉下来”一个键。【需递归处理父节点可能的下溢】
-        if (leaf_node->prev != nullptr && leaf_node->parent == leaf_node->prev->parent && leaf_node->prev->key_count == (TREE_ORDER - 1) / 2) {
-            // 合并当前节点和左兄弟节点
-            auto left_sibling = leaf_node->prev;
-            for(size_t i = 0; i < leaf_node->key_count; ++i) {
-                left_sibling->keys[left_sibling->key_count] = leaf_node->keys[i];
-                left_sibling->values[left_sibling->key_count] = leaf_node->values[i];
-                left_sibling->key_count++;
-            }
-            left_sibling->next = leaf_node->next;
-            if (leaf_node->next != nullptr) {
-                leaf_node->next->prev = left_sibling;
-            }
-            // 删除当前节点
-            leaf_node->prev = nullptr;
-            leaf_node->next = nullptr;
-            leaf_node->key_count = 0;
+        // // 4. 如果兄弟节点也处于最小键数量，需要进行合并（Merge）
+        // // 合并当前节点和兄弟节点，将当前节点的键值对全部移动到兄弟节点，然后删除当前节点。
+        // // 这个过程需要更新父节点中的索引键，“拉下来”一个键。【需递归处理父节点可能的下溢】
+        // if (leaf_node->prev != nullptr && leaf_node->parent == leaf_node->prev->parent && leaf_node->prev->key_count == (TREE_ORDER - 1) / 2) {
+        //     // 合并当前节点和左兄弟节点
+        //     auto left_sibling = leaf_node->prev;
+        //     for(size_t i = 0; i < leaf_node->key_count; ++i) {
+        //         left_sibling->keys[left_sibling->key_count] = leaf_node->keys[i];
+        //         left_sibling->values[left_sibling->key_count] = leaf_node->values[i];
+        //         left_sibling->key_count++;
+        //     }
+        //     left_sibling->next = leaf_node->next;
+        //     if (leaf_node->next != nullptr) {
+        //         leaf_node->next->prev = left_sibling;
+        //     }
+        //     // 删除当前节点
+        //     leaf_node->prev = nullptr;
+        //     leaf_node->next = nullptr;
+        //     leaf_node->key_count = 0;
 
-            size_t leaf_index = std::find(left_sibling->parent->children.begin(), left_sibling->parent->children.end(), leaf_node) - left_sibling->parent->children.begin();
-            left_sibling->parent->children.erase(left_sibling->parent->children.begin() + leaf_index);
-            left_sibling->parent->keys.erase(left_sibling->parent->keys.begin() + leaf_index - 1);
-            left_sibling->parent->key_count--;
-        } else if (leaf_node->next != nullptr && leaf_node->parent == leaf_node->next->parent && leaf_node->next->key_count == (TREE_ORDER - 1) / 2) {
+        //     size_t leaf_index = std::find(left_sibling->parent->children.begin(), left_sibling->parent->children.end(), leaf_node) - left_sibling->parent->children.begin();
+        //     left_sibling->parent->children.erase(left_sibling->parent->children.begin() + leaf_index);
+        //     left_sibling->parent->keys.erase(left_sibling->parent->keys.begin() + leaf_index - 1);
+        //     left_sibling->parent->key_count--;
+        // } else if (leaf_node->next != nullptr && leaf_node->parent == leaf_node->next->parent && leaf_node->next->key_count == (TREE_ORDER - 1) / 2) {
             
-        } 
+        // } 
     }
 
     bool remove(const KeyType& key) {
