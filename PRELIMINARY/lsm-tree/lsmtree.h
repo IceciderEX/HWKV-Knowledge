@@ -1,7 +1,6 @@
 #ifndef __LSMTREE_H__
 #define __LSMTREE_H__
 
-#include <utility>
 #include <vector>
 #include <map>
 #include <string>
@@ -48,14 +47,15 @@ public:
 private:
     void flush();
     void compact();
-    size_t get_memtable_size() const;
+    void print() const ;
+    size_t get_memtable_size() const { return m_memtable_size_; };
 
     const Value m_deleted_value_ = "__TOMBSTONE__";
     std::map<Key, Value> m_memtable_; // Memtable
     std::vector<std::vector<std::shared_ptr<SSTable>>> m_sstables_; // SSTables
     
     size_t m_threshold_size_; // Memtable的大小阈值
-    size_t m_memtable_size_; // Memtable的当前大小
+    size_t m_memtable_size_ = 0; // Memtable的当前大小
 };
 
 
