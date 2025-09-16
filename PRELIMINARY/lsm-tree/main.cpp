@@ -12,7 +12,39 @@ void print_get_result(const std::string& key, const std::optional<Value>& val) {
     }
 }
 
-int main() {
+void test_leveling() {
+    std::cout << "\n===== Running Leveling Strategy Example =====\n" << std::endl;
+    // Leveling策略：L0最多2个SSTable，层级大小比例为5倍
+    auto strategy = std::make_unique<LevelingCompaction>(2, 3, 50);
+    LSMTree tree(50, std::move(strategy));
+
+    std::cout << "--- Stage 1: Flushing to L0, no compaction ---" << std::endl;
+    tree.put("key:01", "some_value_a");
+    tree.put("key:02", "some_value_b");
+    tree.put("key:03", "some_value_c"); // Flush 1 -> L0 has 1 table
+    tree.print();
+
+    std::cout << "\n--- Stage 2: Flushing to L0, triggering L0->L1 compaction ---" << std::endl;
+    tree.put("key:04", "another_value_d");
+    tree.put("key:05", "another_value_e");
+    tree.put("key:06", "another_value_f"); // Flush 2 -> L0 has 2 tables -> Compaction!
+    tree.print();
+
+    std::cout << "\n--- Stage 3: Checking results after compaction ---" << std::endl;
+    // 所有数据现在应该都在L1的一个大SSTable里
+    print_get_result("key:01", tree.get("key:01"));
+    print_get_result("key:06", tree.get("key:06"));
+
+    std::cout << "\n--- Stage 4: Overwriting a key and flushing again ---" << std::endl;
+    tree.put("key:01", "new_value_for_key_01"); // 这个新值在MemTable
+    print_get_result("key:01", tree.get("key:01")); // 应该能获取到新值
+    tree.put("key:07", "value_g");
+    tree.put("key:08", "value_h");
+    tree.put("key:09", "value_i"); // Flush 3 -> L0 has 1 table again
+    tree.print();
+}
+
+void test_tiering() {
     std::cout << "\n===== Running Tiering Strategy Example (Corrected) =====\n" << std::endl;
     // Tiering策略：Tier中SSTable数量达到2时合并
     // MemTable阈值：50字节
@@ -41,6 +73,10 @@ int main() {
     // 其他键应该可以在合并后的Tier 1中找到
     print_get_result("user:1002", tree.get("user:1002")); 
     print_get_result("user:1004", tree.get("user:1004"));
+}
 
+int main() {
+    // test_tiering();
+    test_leveling();
     return 0;
 }

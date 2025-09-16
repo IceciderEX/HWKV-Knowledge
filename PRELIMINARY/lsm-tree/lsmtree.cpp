@@ -98,15 +98,39 @@ void LevelingCompaction::compact(std::vector<std::vector<std::shared_ptr<SSTable
     if (levels[0].size() >= max_level_0_size_) {
         compact_level(levels, 0);
     }
+
+    for (size_t i = 1; i < levels.size(); ++i) {
+        if (calculate_level_size(levels[i]) >= max_level_1_size_ * pow(max_t_, i - 1)) {
+            compact_level(levels, i);
+        }
+    }
 }
 
-void compact_level(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, size_t level) {
-    auto merged_sstable = merge_sstables(levels[level], DELETED); 
+void LevelingCompaction::compact_level(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, size_t level) {
+    // auto merged_sstable = merge_sstables(levels[level], DELETED); 
+    // 将当前 level 的 sstable 与下一 level 的 sstable 放到一起进行合并
     std::vector<std::shared_ptr<SSTable>> tables_to_merge;
 
     if (level + 1 >= levels.size()) {
         levels.resize(level + 2);
     }
+    // TODO: 修改为只和 level + 1 中存在重叠的 key 进行压缩
+    for (size_t i = 0;i < levels[level].size(); ++i) {
+        tables_to_merge.emplace_back(levels[level][i]);
+    }
+    for (size_t i = 0;i < levels[level + 1].size(); ++i) {
+        tables_to_merge.emplace_back(levels[level + 1][i]);
+    }
+
+    if (tables_to_merge.empty()) {
+        return;
+    }
+    auto res = merge_sstables(tables_to_merge, DELETED);
+    levels[level + 1].clear();
+    levels[level].clear();
+
+    // 加入到 level + 1 层中
+    levels[level + 1].emplace_back(std::make_shared<SSTable>(std::move(res)));
 }
 
 // get 
