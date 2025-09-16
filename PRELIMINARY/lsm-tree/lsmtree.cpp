@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <iostream>
+#include <queue>
+#include <math.h>
 #include "lsmtree.h"
 
 // 从写满的Memtable中创建SSTable
@@ -7,17 +9,104 @@ SSTable::SSTable(std::map<Key, Value> mem_table) {
     m_data_.reserve(mem_table.size());
 
     for (const auto& pair: mem_table) {
-        for (const auto& pair: mem_table) {
-            m_data_.emplace_back(pair);
-            m_size_ += pair.first.size() + pair.second.size();
-        }
+        m_data_.emplace_back(pair);
+        m_size_ += pair.first.size() + pair.second.size();
     }
 }
 
 
 // 由 Compaction 的结果创建
 SSTable::SSTable(std::vector<KVPair> data) {
-    // TODO
+    m_data_ = std::move(data);
+    for (const auto& pair: m_data_) {
+        m_size_ += pair.first.size() + pair.second.size();
+    }
+}
+
+TieringCompaction::TieringCompaction(size_t max_t): max_t(max_t) {}
+
+bool TieringCompaction::should_compact(const std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) const {
+    for (const auto& level: levels) {
+        if (level.size() >= max_t) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void TieringCompaction::add_sstable(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, std::shared_ptr<SSTable> sstable) {
+    if (levels.empty()) {
+        levels.resize(1);
+    }
+    // 将 sstable 放置到 level 0
+    levels[0].emplace_back(sstable);
+}
+
+void TieringCompaction::compact(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) {
+    // 1. 遍历每个 level，将所有 sstable 合并到一个新的 sstable 中
+    for (size_t i = 0; i < levels.size(); ++i) {
+        auto cur_level = levels[i];
+        if (cur_level.size() >= max_t) {
+            auto new_sstable = merge_sstables(cur_level, DELETED);
+            
+            if (i + 1>= levels.size()) {
+                levels.resize(i + 2);
+            }
+            levels[i + 1].emplace_back(std::make_shared<SSTable>(new_sstable));
+            // 清空当前 level 的 sstable
+            levels[i].clear();
+        }
+    }
+}
+
+LevelingCompaction::LevelingCompaction(size_t max_level_0_size, size_t max_t, size_t max_level_1_size): 
+    max_level_0_size_(max_level_0_size), max_t_(max_t), max_level_1_size_(max_level_1_size) {}
+
+size_t LevelingCompaction::calculate_level_size(const std::vector<std::shared_ptr<SSTable>>& level) const {
+    size_t res = 0;
+    for (auto it = level.begin(); it != level.end(); it++) {
+        res += (*it)->size();
+    }
+    return res;
+}
+
+bool LevelingCompaction::should_compact(const std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) const {
+    if (levels.empty()) return false;
+    // 1. 先检查 Level 0
+    if (levels[0].size() >= max_level_0_size_) {
+        return true;
+    }
+    // 2. 再检查后续的 level 的大小是否超过阈值
+    for (size_t i = 1; i < levels.size(); ++i) {
+        if (calculate_level_size(levels[i]) >= max_level_1_size_ * pow(max_t_, i - 1)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void LevelingCompaction::add_sstable(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, std::shared_ptr<SSTable> sstable) {
+    if (levels.empty()) {
+        levels.resize(1);
+    }
+    // 将 sstable 放置到 level 0
+    levels[0].emplace_back(sstable);
+}
+
+void LevelingCompaction::compact(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) {
+    // TODO: 实现完全压缩
+    if (levels[0].size() >= max_level_0_size_) {
+        compact_level(levels, 0);
+    }
+}
+
+void compact_level(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, size_t level) {
+    auto merged_sstable = merge_sstables(levels[level], DELETED); 
+    std::vector<std::shared_ptr<SSTable>> tables_to_merge;
+
+    if (level + 1 >= levels.size()) {
+        levels.resize(level + 2);
+    }
 }
 
 // get 
@@ -32,23 +121,27 @@ std::optional<Value> SSTable::get(const Key& key) const {
     return std::nullopt;
 }
 
-LSMTree::LSMTree(size_t threshold_size): m_threshold_size_(threshold_size) {}
+LSMTree::LSMTree(size_t threshold_size, std::unique_ptr<Compaction> comp): m_threshold_size_(threshold_size), m_compaction_strategy_(std::move(comp)) {}
 
 void LSMTree::put(const Key& key, const Value& value){
     // 1. 插入到 Memtable
     auto it = m_memtable_.find(key);
     // 2. 更新 memtable 的 size
     if (it != m_memtable_.end() && it->first == key) {
+        // key 存在，加上新 value 与旧 value 的差值
         m_memtable_size_ += (value.size() - it->second.size());
     } else {
-        m_memtable_size_ += value.size();
+        // key 不存在，加上 key 与 value 的大小
+        m_memtable_size_ += (key.size() + value.size());
     }
     // 3. 插入到 memtable 中
     m_memtable_[key] = value;
     std::cout << "Add a new KVPair to memtable: " << key << " -> " << value << std::endl; 
+    std::cout << "Memtable size: " << m_memtable_size_ << std::endl;
     if (m_memtable_size_ >= m_threshold_size_) {
         flush();
     }
+    print();
 }
 
 void LSMTree::flush() {
@@ -61,16 +154,127 @@ void LSMTree::flush() {
     if (m_sstables_.size() == 0) {
         m_sstables_.resize(1);
     }
-    m_sstables_.emplace_back(new_sstable);
+    m_compaction_strategy_->add_sstable(m_sstables_, new_sstable);
+    // m_sstables_[0].emplace_back(new_sstable);
+    if (m_compaction_strategy_->should_compact(m_sstables_)) {
+        std::cout << "Compaction start!!!" << std::endl;
+        m_compaction_strategy_->compact(m_sstables_);
+    }
 
     m_memtable_.clear();
     m_memtable_size_ = 0;
 
     std::cout << "A Memtable has flushed!!!" << std::endl;
+}
 
-    compact();
+void LSMTree::del(const Key& key) {
+    // del 的过程与 put 是类似的，也是增加一条记录
+    auto it = m_memtable_.find(key);
+    if (it != m_memtable_.end() && it->first == key) {
+        // key 存在，加上 deleted value 与旧 value 的差值
+        m_memtable_size_ += (m_deleted_value_.size() - it->second.size());
+    } else {
+        // key 不存在，加上 key 与 deleted value 的大小
+        m_memtable_size_ += (key.size() + m_deleted_value_.size());
+    }
+
+    m_memtable_[key] = m_deleted_value_;
+    if (m_memtable_size_ >= m_threshold_size_) {
+        flush();
+    }
+}
+
+std::optional<Value> LSMTree::get(const Key& key) {
+    // 1. 从 memtable 中查找
+    auto it = m_memtable_.find(key);
+    if (it != m_memtable_.end()) {
+        // 如果是 TOMBSTONE，说明已删除，返回 nullopt
+        if (it->second == m_deleted_value_) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    // 2. 从 sstable 中查找
+    for (const auto& level: m_sstables_) {
+        // 因为 sstable 是按照 emplace_back 方法插入的，所以需要从后往前遍历
+        // 这样才能查询到最新的数据
+        for(auto it = level.rbegin(); it != level.rend(); ++it) {
+            auto res = (*it)->get(key);
+            if (res.has_value()) {
+                if(res.value() == m_deleted_value_) {
+                    return std::nullopt;
+                }
+                return res.value();
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::vector<KVPair> merge_sstables(std::vector<std::shared_ptr<SSTable>>& sstables, const Value deleted_value) {
+    std::vector<KVPair> res;
+
+    // 使用 priority_queue 进行 K 路合并操作进行 merge
+    // [Key, Value, table_idx, data_idx]
+    using t = std::tuple<Key, Value, size_t, size_t> ;
+    // 按照 key 的升序排序
+    std::priority_queue<t, std::vector<t>, std::greater<t>> min_heap;
+
+    // 将每个 sstable 的第一个元素加入 min_heap
+    for (size_t i = 0; i < sstables.size();++i) {
+        if (!sstables[i]->is_empty()) {
+            auto entries = sstables[i]->get_all_data();
+            min_heap.push({entries[0].first, entries[0].second, i, 0});
+        }
+    }
+
+    // 用于处理循环的第一次迭代（last_key 为空的情况）
+    bool is_first = true;
+    // 标识当前处理的最新的 key
+    Key last_key;
+    while (!min_heap.empty()) {
+        auto [key, value, table_idx, data_idx] = min_heap.top();
+        min_heap.pop();
+
+        if (is_first) {
+            if (value != deleted_value) {
+                res.emplace_back(key, value);
+            }
+            last_key = key;
+            is_first = false;
+        } else {
+            // 如果 key 没有被处理过，且不是 TOMBSTONE，加入到 res 中
+            if (key != last_key) {
+                if (value != deleted_value) {
+                    res.emplace_back(key, value);
+                }
+                last_key = key;
+            } 
+            // 如果现在的 key 已经被处理过，当前的值直接丢弃
+        }
+
+        auto cur_sstable_entries = sstables[table_idx]->get_all_data();
+        // 将当前 sstable 下一个元素加入 min_heap
+        if (data_idx + 1 < cur_sstable_entries.size()) {
+            auto next_entry = cur_sstable_entries[data_idx + 1];
+            min_heap.push({next_entry.first, next_entry.second, table_idx, data_idx + 1});
+        }
+    }
+
+    return res;
 }
 
 void LSMTree::print() const {
-
+    std::cout << "--- LSM-Tree Structure ---" << std::endl;
+    std::cout << "MemTable Size: " << m_memtable_size_ << " / " << m_threshold_size_ << " bytes" << std::endl;
+    for (size_t i = 0; i < m_sstables_.size(); ++i) {
+        std::cout << "Level " << i << " (" << m_sstables_[i].size() << " tables):" << std::endl;
+        for (const auto& table : m_sstables_[i]) {
+            std::cout << "  - SSTable (size: " << table->size() << " bytes, keys: " 
+                      << table->get_all_data().size() << ")" << std::endl;
+        }
+    }
+    std::cout << "--------------------------" << std::endl;
 }
