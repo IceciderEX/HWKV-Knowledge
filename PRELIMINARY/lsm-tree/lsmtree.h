@@ -105,7 +105,7 @@ private:
     void flush();
     size_t get_memtable_size() const { return m_memtable_size_; };
 
-    const Value m_deleted_value_ = "__TOMBSTONE__";
+    const Value m_deleted_value_ = "__TOMBSTONE__"; // 删除标记
     std::map<Key, Value> m_memtable_; // Memtable
     std::vector<std::vector<std::shared_ptr<SSTable>>> m_sstables_; // SSTables
     

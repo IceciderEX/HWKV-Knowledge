@@ -310,23 +310,6 @@ std::optional<Value> LSMTree::get(const Key& key) {
     }
 
     return std::nullopt;
-
-    // 2. 从 sstable 中查找，可进行二分查找
-    // for (const auto& level: m_sstables_) {
-    //     // 因为 sstable 是按照 emplace_back 方法插入的，所以需要从后往前遍历
-    //     // 这样才能查询到最新的数据
-    //     for(auto it = level.rbegin(); it != level.rend(); ++it) {
-    //         auto res = (*it)->get(key);
-    //         if (res.has_value()) {
-    //             if(res.value() == m_deleted_value_) {
-    //                 return std::nullopt;
-    //             }
-    //             return res.value();
-    //         }
-    //     }
-    // }
-
-    return std::nullopt;
 }
 
 std::vector<KVPair> merge_sstables(std::vector<std::shared_ptr<SSTable>>& sstables, const Value deleted_value) {
@@ -354,7 +337,7 @@ std::vector<KVPair> merge_sstables(std::vector<std::shared_ptr<SSTable>>& sstabl
         auto [key, table_idx, value, data_idx] = min_heap.top();
         min_heap.pop();
         
-        // 只保留最新的数据
+        // 只保留最新的数据到 res 中
         if (is_first || key != last_key) {
             res.emplace_back(key, value);
             last_key = key;
