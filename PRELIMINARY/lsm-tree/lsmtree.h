@@ -27,11 +27,14 @@ public:
     // 查找
     std::optional<Value> get(const Key& key) const; 
     // 获取所有数据用于Compaction
-    std::vector<KVPair> get_all_data() const { return m_data_; }
+    const std::vector<KVPair>& get_all_data() const { return m_data_; }
 
     // 获取SSTable的大小
     size_t size() const { return m_size_; }
     bool is_empty() { return m_data_.empty(); }
+    // 获取该 sstable 的键范围
+    std::optional<Key> get_first_key() const;
+    std::optional<Key> get_last_key() const;
 private:
     std::vector<KVPair> m_data_; // SSTable的数据
     size_t m_size_ = 0; // SSTable的大小
