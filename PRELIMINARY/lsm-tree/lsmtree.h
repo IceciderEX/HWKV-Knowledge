@@ -42,7 +42,7 @@ private:
 
 class Compaction {
 public:
-    Compaction() = default;
+    Compaction(size_t m_sstable_size): m_sstable_size_(m_sstable_size) {};
     virtual~Compaction() = default;
     // 是否需要Compaction
     virtual bool should_compact(const std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) const = 0;
@@ -50,11 +50,13 @@ public:
     virtual void compact(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) = 0;
     // 添加SSTable到levels中
     virtual void add_sstable(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, std::shared_ptr<SSTable> sstable) = 0;
+protected:
+    size_t m_sstable_size_;
 };
 
 class TieringCompaction: public Compaction {
 public:
-    TieringCompaction(size_t max_t);
+    TieringCompaction(size_t sstable_size, size_t max_t);
     ~TieringCompaction() = default;
     // 是否需要Compaction
     bool should_compact(const std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) const override;
@@ -63,13 +65,13 @@ public:
     // 添加SSTable
     void add_sstable(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, std::shared_ptr<SSTable> sstable) override;
 private:
-    // max_t
-    size_t max_t;
+    // max_t，每层的最大的 sstable 数量
+    size_t max_t_;
 };
 
 class LevelingCompaction: public Compaction {
 public:
-    LevelingCompaction(size_t max_level_0_size, size_t max_t, size_t max_level_1_size);
+    LevelingCompaction(size_t sstable_size, size_t max_level_0_size, size_t max_t, size_t max_level_1_size);
     ~LevelingCompaction() = default;
     // 是否需要 Compaction
     bool should_compact(const std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) const override;
@@ -94,7 +96,7 @@ std::vector<KVPair> merge_sstables(std::vector<std::shared_ptr<SSTable>>& sstabl
 class LSMTree {
 public:
     // 构造函数, threshold_size为Memtable的大小阈值
-    explicit LSMTree(size_t threshold_size, std::unique_ptr<Compaction> comp);
+    explicit LSMTree(size_t m_sstable_size, size_t threshold_size, std::unique_ptr<Compaction> comp);
 
     void put(const Key& key, const Value& value);
     void del(const Key& key);
@@ -111,6 +113,7 @@ private:
     
     size_t m_threshold_size_; // Memtable的大小阈值
     size_t m_memtable_size_ = 0; // Memtable的当前大小
+    size_t m_sstable_size_; // SSTable的最大大小
     std::unique_ptr<Compaction> m_compaction_strategy_; // 使用的压缩策略
 };
 

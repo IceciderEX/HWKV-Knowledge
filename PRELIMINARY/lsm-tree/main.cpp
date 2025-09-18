@@ -28,8 +28,8 @@ void test_leveling_advanced() {
     // 层级大小比例为2倍 (L1 > L0 * 2, L2 > L1 * 2 ...)
     // L1 的基础大小阈值为 250 字节
     // MemTable 阈值为 100 字节
-    auto strategy = std::make_unique<LevelingCompaction>(4, 2, 250); // 您代码中的构造函数
-    LSMTree tree(100, std::move(strategy));
+    auto strategy = std::make_unique<LevelingCompaction>(50, 4, 2, 250); // 您代码中的构造函数
+    LSMTree tree(50, 50, std::move(strategy));
 
     // --- Stage 1: 填满L0并触发第一次 L0->L1 Compaction ---
     std::cout << "--- Stage 1: Filling L0 to trigger L0->L1 compaction ---" << std::endl;
@@ -101,8 +101,8 @@ void test_tiering() {
     std::cout << "\n===== Running Tiering Strategy Example (Corrected) =====\n" << std::endl;
     // Tiering策略：Tier中SSTable数量达到2时合并
     // MemTable阈值：50字节
-    auto strategy = std::make_unique<TieringCompaction>(2);
-    LSMTree tree(50, std::move(strategy));
+    auto strategy = std::make_unique<TieringCompaction>(2, 50); // max_t = 2, sstable_size = 50
+    LSMTree tree(50, 50, std::move(strategy));
 
     std::cout << "--- Stage 1: Triggering the first flush ---" << std::endl;
     // 这两个put操作会超过50字节，触发第一次flush
@@ -133,8 +133,8 @@ void test_tiering_advanced() {
     // --- 参数设置 ---
     // Tiering策略: 当一个层(Tier)的SSTable数量达到3时，触发合并
     // MemTable 阈值: 60 字节
-    auto strategy = std::make_unique<TieringCompaction>(3); // max_t = 3
-    LSMTree tree(60, std::move(strategy));
+    auto strategy = std::make_unique<TieringCompaction>(50, 3); // max_t = 3
+    LSMTree tree(50, 50, std::move(strategy));
 
     // --- Stage 1: 填满L0并触发第一次 L0->L1 Compaction ---
     std::cout << "--- Stage 1: Filling L0 to trigger L0->L1 compaction ---" << std::endl;
@@ -206,7 +206,7 @@ void test_tiering_advanced() {
 }
 
 int main() {
-    test_tiering_advanced();
-    // test_leveling_advanced();
+    // test_tiering_advanced();
+    test_leveling_advanced();
     return 0;
 }
