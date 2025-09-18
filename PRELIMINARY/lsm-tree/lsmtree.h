@@ -20,7 +20,7 @@ public:
     // 构造函数
     // (1) SSTable从写满了的Memtable中新创建
     explicit SSTable(std::map<Key, Value> mem_table);
-    // (2) Compaction
+    // (2) Compaction结果中创建
     explicit SSTable(std::vector<KVPair> data);
     ~SSTable() = default;
 
@@ -36,7 +36,7 @@ public:
     std::optional<Key> get_first_key() const;
     std::optional<Key> get_last_key() const;
 private:
-    std::vector<KVPair> m_data_; // SSTable的数据
+    std::vector<KVPair> m_data_; // SSTable的数据，保持有序
     size_t m_size_ = 0; // SSTable的大小
 };
 
@@ -48,7 +48,7 @@ public:
     virtual bool should_compact(const std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) const = 0;
     // 进行Compaction
     virtual void compact(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) = 0;
-    // 添加SSTable
+    // 添加SSTable到levels中
     virtual void add_sstable(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, std::shared_ptr<SSTable> sstable) = 0;
 };
 

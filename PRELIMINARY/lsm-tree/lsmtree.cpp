@@ -15,7 +15,6 @@ SSTable::SSTable(std::map<Key, Value> mem_table) {
     }
 }
 
-
 // 由 Compaction 的结果创建
 SSTable::SSTable(std::vector<KVPair> data) {
     m_data_ = std::move(data);
@@ -49,11 +48,12 @@ bool TieringCompaction::should_compact(const std::vector<std::vector<std::shared
     return false;
 }
 
+// 将 flush 得到的 sstable 加入到 levels 当中
 void TieringCompaction::add_sstable(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels, std::shared_ptr<SSTable> sstable) {
     if (levels.empty()) {
         levels.resize(1);
     }
-    // 将 sstable 放置到 level 0
+    // 将 sstable 放置到 level 0 的最前面
     levels[0].emplace(levels[0].begin(), sstable);
     // levels[0].emplace_back(sstable);
 }
@@ -62,10 +62,11 @@ void TieringCompaction::compact(std::vector<std::vector<std::shared_ptr<SSTable>
     // 1. 遍历每个 level，将所有 sstable 合并到一个新的 sstable 中
     for (size_t i = 0; i < levels.size(); ++i) {
         auto& cur_level = levels[i];
+        // 如果当前 sstable 数量达到阈值
         if (cur_level.size() >= max_t) {
             auto new_sstable = merge_sstables(cur_level, DELETED);
             
-            if (i + 1>= levels.size()) {
+            if (i + 1 >= levels.size()) {
                 levels.resize(i + 2);
             }
             levels[i + 1].emplace_back(std::make_shared<SSTable>(new_sstable));
@@ -78,6 +79,8 @@ void TieringCompaction::compact(std::vector<std::vector<std::shared_ptr<SSTable>
 LevelingCompaction::LevelingCompaction(size_t max_level_0_size, size_t max_t, size_t max_level_1_size): 
     max_level_0_size_(max_level_0_size), max_t_(max_t), max_level_1_size_(max_level_1_size) {}
 
+
+// 计算 level 层的总大小
 size_t LevelingCompaction::calculate_level_size(const std::vector<std::shared_ptr<SSTable>>& level) const {
     size_t res = 0;
     for (auto it = level.begin(); it != level.end(); it++) {
@@ -135,9 +138,10 @@ void LevelingCompaction::compact_level(std::vector<std::vector<std::shared_ptr<S
     std::cout << "Compaction start at level " << level << std::endl;
     std::vector<std::shared_ptr<SSTable>> tables_to_merge;
     // 只和 level + 1 中存在重叠的 key 进行压缩
+    // 先得到当前 level 层的 key 范围
     Key level_first_key = levels[level].front()->get_first_key().value();
     Key level_last_key = levels[level].back()->get_last_key().value();
-    // 特例：L0 的 sstable 不是有序的
+    // L0 的 sstable 不是有序的，遍历得到 key range
     for (const auto& sstable: levels[level]) {
         if (level == 0) {
             if (sstable->get_first_key().has_value() && sstable->get_first_key().value() < level_first_key) {
@@ -224,6 +228,8 @@ void LSMTree::put(const Key& key, const Value& value){
     m_memtable_[key] = value;
     std::cout << "Add a new KVPair to memtable: " << key << " -> " << value << std::endl; 
     std::cout << "Memtable size: " << m_memtable_size_ << std::endl;
+    // flush
+    
     if (m_memtable_size_ >= m_threshold_size_) {
         flush();
     }
