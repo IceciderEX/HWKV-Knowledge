@@ -2,6 +2,9 @@
 #include <iostream>
 #include <optional>
 
+// template class std::vector<Value>;
+template class std::vector<std::shared_ptr<SSTable>>;
+
 // 辅助函数，让打印更方便
 void print_get_result(const std::string& key, const std::optional<Value>& val) {
     std::cout << "Getting '" << key << "': ";
@@ -184,7 +187,7 @@ void test_tiering_advanced() {
     std::cout << "\n--- Stage 4: Triggering cascading compaction (L1 -> L2) ---" << std::endl;
     // L1 现在有2个SSTable，我们只需要再从L0合并1个SSTable过来，就能触发L1的合并
     std::cout << "\nCreating one more SSTable in L1 to trigger L1->L2 compaction..." << std::endl;
-    for (int i = 40; i < 52; ++i) { // 产生3个新的SSTable到L0
+    for (int i = 40; i < 75; ++i) { // 产生3个新的SSTable到L0
         tree.put(make_key(i), "cascade_trigger_value_" + std::to_string(i));
     }
     tree.put("final_trigger", "cascade"); // 触发L0->L1合并

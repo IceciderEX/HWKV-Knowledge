@@ -54,7 +54,8 @@ void TieringCompaction::add_sstable(std::vector<std::vector<std::shared_ptr<SSTa
         levels.resize(1);
     }
     // 将 sstable 放置到 level 0
-    levels[0].emplace_back(sstable);
+    levels[0].emplace(levels[0].begin(), sstable);
+    // levels[0].emplace_back(sstable);
 }
 
 void TieringCompaction::compact(std::vector<std::vector<std::shared_ptr<SSTable>>>& levels) {
@@ -288,18 +289,11 @@ std::optional<Value> LSMTree::get(const Key& key) {
             }
         }
     }
-
     for (size_t i = 1; i < m_sstables_.size(); ++i) {
         const auto& level_sstables = m_sstables_[i];
         // 找到第一个 lastkey 大于 key 的 sstable
         if (level_sstables.empty()) continue;
-        auto it = std::lower_bound(level_sstables.begin(), level_sstables.end(), key, 
-                [](const std::shared_ptr<SSTable>& table, const Key& key) {
-                    return table->get_last_key() < key;
-                }
-        );
-
-        if (it != level_sstables.end()) {
+        for (auto it = level_sstables.rbegin(); it != level_sstables.rend(); ++it) {
             auto res = (*it)->get(key);
             if (res.has_value()) {
                 if( res == m_deleted_value_) {
@@ -308,6 +302,11 @@ std::optional<Value> LSMTree::get(const Key& key) {
                 return res.value();
             } 
         }
+        // auto it = std::lower_bound(level_sstables.begin(), level_sstables.end(), key, 
+        //         [](const std::shared_ptr<SSTable>& table, const Key& key) {
+        //             return table->get_last_key() < key;
+        //         }
+        // );
     }
 
     return std::nullopt;
