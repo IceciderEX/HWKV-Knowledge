@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <optional>
 #include <vector>
-#include <thread>
 #include <mutex>
 #include <iostream>
 
@@ -74,13 +73,7 @@ bool Skiplist::insert(const Key& key, const Value& value) {
         for (int i = 0; i < insert_height; ++i) {
             new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
         }
-
-        Node* expected_next_l0 = new_node->next_[0].load(std::memory_order_relaxed);
-        if (!prevs[0]->next_[0].compare_exchange_strong(expected_next_l0, new_node,std::memory_order_release)) {
-            continue;
-        }
-        
-        for (int i = 1; i < insert_height; ++i) {
+        for (int i = 0; i < insert_height; ++i) {
             while (true) {
                 // find_prevs(key, prevs);
                 Node* expected_next = new_node->next_[i].load(std::memory_order_relaxed);
@@ -93,7 +86,7 @@ bool Skiplist::insert(const Key& key, const Value& value) {
                 // ", next=", (level_pnext ? level_pnext->key_ : "null"));
                 // 说明有其他线程修改了 prev 的 next，需要重新查找 prev
                 find_prevs(key, prevs);
-                // 更新新节点的 next 指针
+                // 更新新节点的 next 指针，因为 prevs[i]->next_[i] 可能已经被修改了
                 new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
             }
         }
