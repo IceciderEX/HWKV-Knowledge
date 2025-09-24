@@ -65,7 +65,7 @@ void run_multi_thread_tests() {
     auto sl = std::make_shared<Skiplist>(16);
     
     const int num_threads = 8;
-    const int keys_per_thread = 100;
+    const int keys_per_thread = 1000;
     std::vector<std::thread> threads;
 
     // 1. 并发插入测试
@@ -90,7 +90,7 @@ void run_multi_thread_tests() {
     Node* current = sl->find_greater_or_equal(""); // 从头开始
     while (current != nullptr) {
         count++;
-        std::cout << current->key_ << " ";
+        // std::cout << current->key_ << " ";
         current = current->next_[0].load();
     }
     print_test_result("Concurrent Insert Total Count", count == num_threads * keys_per_thread);
@@ -134,15 +134,6 @@ void run_multi_thread_tests() {
                     std::cout << "  [FAIL] check failed to find key: " << key << std::endl;
                 }
             }
-            // // 写入完成后检查一次，确保所有数据都可读
-            // for (int k = 0; k < (num_threads / 2) * 500; ++k) {
-            //     int key_num = 100000 + k;
-            //     if (!sl->contains("rw_key_" + std::to_string(key_num))) {
-            //         read_failures++;
-            //         std::lock_guard<std::mutex> lock(g_print_mutex);
-            //         std::cout << "  [FAIL] Final check failed to find key: " << "rw_key_" + std::to_string(key_num) << std::endl;
-            //     }
-            // }
         });
     }
 
