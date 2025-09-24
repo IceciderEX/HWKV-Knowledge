@@ -64,7 +64,7 @@ bool LockFreeQueue<T>::pop(T& data) {
                 // 2. 可能 push 操作没有成功更新 tail，帮助其更新为第一个数据节点
                 m_tail_.compare_exchange_strong(old_tail, new_head, std::memory_order_release);
             } else {
-                // 尝试移动 head 为第一个数据节点
+                // 尝试移动 head 为第一个数据节点，如果修改成功，就可以进行 pop 了
                 if (m_head_.compare_exchange_strong(old_head, new_head, std::memory_order_release)) {
                     // 获得第一个数据节点的值，赋值给 data，第一个数据节点的值就被 pop 了
                     data = std::move(new_head->data);
