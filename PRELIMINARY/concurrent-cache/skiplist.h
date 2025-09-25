@@ -18,6 +18,7 @@ public:
     // 节点的高度：节点拥有多少层 next 指针
     const int height_;
     // 由于可能有多线程对 next 进行修改，需要将其设置为 atomic
+    // 为 node 分配一个指针的空间
     std::atomic<Node*> next_[1];
     
     static Node* create_node(const Key& key, const Value& value, const int height) {
