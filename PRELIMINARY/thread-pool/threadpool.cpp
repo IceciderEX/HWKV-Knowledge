@@ -30,10 +30,10 @@ void LockFreeQueue<T>::push(const T data) {
         if (old_tail->next.compare_exchange_weak(expected, new_node, std::memory_order_release)) {
             break;
         }
-        // 如果失败了，说明有其他线程更新了 old_tail->next（不为空），重试循环
+        // 如果失败了，说明有其他线程更新了 old_tail->next（不为空），重新读取tail，重试循环
     }
 
-    // 尝试更新原来的 tail 指针，使其指向新的尾节点 new_node
+    // 尝试更新 tail 指针，使其指向新的尾节点 new_node
     // 如果 tail 的指针没变，则将 tail 更新为 new_node
     m_tail_.compare_exchange_strong(old_tail, new_node, std::memory_order_release);
     m_data_size_.fetch_add(1, std::memory_order_release);
@@ -61,7 +61,7 @@ bool LockFreeQueue<T>::pop(T& data) {
                 if (new_head == nullptr) {
                     return false;
                 }
-                // 2. 可能 push 操作没有成功更新 tail，帮助其更新为第一个数据节点
+                // 2. old_head == old_tail 且队列不为空，可能 push 操作没有成功更新 tail，帮助其更新为第一个数据节点
                 m_tail_.compare_exchange_strong(old_tail, new_head, std::memory_order_release);
             } else {
                 // 尝试移动 head 为第一个数据节点，如果修改成功，就可以进行 pop 了
@@ -73,6 +73,7 @@ bool LockFreeQueue<T>::pop(T& data) {
                     m_data_size_.fetch_sub(1, std::memory_order_release);
                     return true;
                 }
+                // 如果失败，说明 head 发生了变化，重试
             }
         }
     }
@@ -84,12 +85,14 @@ bool LockFreeQueue<T>::is_empty() {
 }
 
 ThreadPool::ThreadPool(size_t num_threads) {
+    // 初始化 n 个线程
     for (size_t i = 0; i < num_threads; ++i) {
         m_workers_.emplace_back([this](){ this->worker_thread(); } );
     }
 }
 
 ThreadPool::~ThreadPool() {
+    // 析构时唤醒所有线程，执行完剩下的逻辑
     m_stop_.store(true, std::memory_order_release);
     m_cv_.notify_all();
     for (auto& thread: m_workers_) {
@@ -101,6 +104,7 @@ ThreadPool::~ThreadPool() {
 
 void ThreadPool::enqueue(std::function<void()> task) {
     m_task_queue_.push(task);
+    // 通过 cv 唤醒一个线程
     m_cv_.notify_one();
 }
 
@@ -108,10 +112,11 @@ void ThreadPool::worker_thread() {
     while (true) {
         std::function<void()> task;
         if (m_task_queue_.pop(task)) {
+            // 成功分配到任务
             task();
         } else {
             std::unique_lock<std::mutex> lock(m_mutex_);
-            // 调用 wait，直到有新的任务来到 / 停止
+            // 调用 wait，直到有新的任务来到 / 线程池停止
             m_cv_.wait(lock, [this]() -> bool {
                 return !m_task_queue_.is_empty() || m_stop_.load();
             });
