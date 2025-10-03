@@ -1,4 +1,5 @@
 #include <atomic>
+#include <cassert>
 #include <cstddef>
 #include <optional>
 #include <vector>
@@ -19,6 +20,7 @@ Skiplist::Skiplist(int k_max_height):
     for (int i = 0; i < k_max_height_; ++i) {
         head_->set_next(i, nullptr);
     }
+    seq_splice_ = allocate_splice();
 }
 
 Node* Skiplist::allocate_node(size_t key_size, int height) {
@@ -78,7 +80,61 @@ int Skiplist::random_height() {
     return h;
 }
 
-bool Skiplist::insert(const char* key) {
+// bool Skiplist::insert(const char* key) {
+//     // int cur_level = current_max_height_.load(std::memory_order_acquire);
+//     // 1. 先查找当前的 key 是否存在（第0层）
+//     // 2. 为新的节点生成一个随机的高度
+//     Node* new_node = (reinterpret_cast<Node*>(const_cast<char*>(key))) - 1;
+
+//     int insert_height = new_node->unstash_height();
+//     int current_height = current_max_height_.load(std::memory_order_acquire);
+//     while (insert_height > current_height) {
+//         if (current_max_height_.compare_exchange_weak(current_height, insert_height, std::memory_order_release)) {
+//             break;
+//         }
+//         // 如果失败，current_height 会被更新为 current_max_height_ 的值，然后重试
+//     }
+
+//     while (true) {
+//         std::vector<Node*> prevs(k_max_height_);
+//         find_prevs(key, prevs);
+
+//         Node* level0_prev = prevs[0];
+//         Node* level0_pnext = level0_prev->next(0);
+//         // 如果存在，插入失败
+//         if (level0_pnext != nullptr && comparator_(level0_pnext->key(), key) == 0) {
+//             return false;
+//         }
+//         // 按照当前版本的 prevs 去设置 next，防止不一致
+//         for (int i = 0; i < insert_height; ++i) {
+//             new_node->no_barrier_set_next(i, prevs[i]->next(i));
+//             // new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
+//         }
+//         for (int i = 0; i < insert_height; ++i) {
+//             while (true) {
+//                 // find_prevs(key, prevs);
+//                 Node* expected_next = new_node->no_barrier_next(i);
+//                 // 可能有其他线程操作，使用 CAS
+//                 if (prevs[i]->cas_set_next(i, expected_next, new_node)) {
+//                     break;
+//                 } 
+//                 // log_print("[TID:", std::this_thread::get_id(), "] insert(", key, "): L", i, 
+//                 // " trying CAS. prev=", level_prev->key_, 
+//                 // ", next=", (level_pnext ? level_pnext->key_ : "null"));
+//                 // 说明有其他线程修改了 prev 的 next，需要重新查找 prev
+//                 find_prevs(key, prevs);
+//                 // 更新新节点的 next 指针，因为 prevs[i]->next_[i] 可能已经被修改了
+//                 new_node->no_barrier_set_next(i, prevs[i]->next(i));
+//                 //new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
+//             }
+//         }
+//         return true;
+//     }
+//     return false;
+// }
+
+template<bool use_cas>
+bool Skiplist::insert(const char* key, Splice* splice) {
     // int cur_level = current_max_height_.load(std::memory_order_acquire);
     // 1. 先查找当前的 key 是否存在（第0层）
     // 2. 为新的节点生成一个随机的高度
@@ -93,42 +149,84 @@ bool Skiplist::insert(const char* key) {
         // 如果失败，current_height 会被更新为 current_max_height_ 的值，然后重试
     }
 
-    while (true) {
-        std::vector<Node*> prevs(k_max_height_);
-        find_prevs(key, prevs);
+    // 加入对 hint 的支持
+    // 首先检查 hint 是否有效
+    int recompute_level = 0;
+    if (splice->height_ < current_height) {
+        // splice 的值已经过旧，重新计算
+        splice->prev_[current_height] = head_;
+        splice->next_[current_height] = nullptr;
+        splice->height_ = current_height;
+        recompute_level = current_height;
+    } else {
+        // 验证 hint 是否有效
+        for (int i = insert_height - 1; i >= 0; --i) {
+            if (splice->prev_[i] == nullptr || splice->prev_[i] == head_ || !key_is_after_node(key, splice->prev_[i])) {
+                // prev[i] 为 head 或者仍然有效
+                if (splice->next_[i] == nullptr || comparator_(splice->next_[i]->key(), key) >= 0) {
+                    continue;
+                }
+            }
+            // 在第 i 层失效
+            recompute_level = i + 1;
+            break;
+        }
+    }
 
-        Node* level0_prev = prevs[0];
-        Node* level0_pnext = level0_prev->next(0);
-        // 如果存在，插入失败
-        if (level0_pnext != nullptr && comparator_(level0_pnext->key(), key) == 0) {
-            return false;
-        }
+    if (recompute_level > 0) {
+        recompute_slices_levels(key, splice, recompute_level);
+    }
+
+    if (splice->next_[0] != nullptr && comparator_(splice->next_[0]->key(), key) == 0) {
+        return false;
+    }
+
+    while (true) {
+        // std::vector<Node*> prevs(k_max_height_);
+        // find_prevs(key, prevs);
+
+        // Node* level0_prev = prevs[0];
+        // Node* level0_pnext = level0_prev->next(0);
+        // // 如果存在，插入失败
+        // if (level0_pnext != nullptr && comparator_(level0_pnext->key(), key) == 0) {
+        //     return false;
+        // }
         // 按照当前版本的 prevs 去设置 next，防止不一致
-        for (int i = 0; i < insert_height; ++i) {
-            new_node->no_barrier_set_next(i, prevs[i]->next(i));
-            // new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
-        }
-        for (int i = 0; i < insert_height; ++i) {
-            while (true) {
-                // find_prevs(key, prevs);
-                Node* expected_next = new_node->no_barrier_next(i);
-                // 可能有其他线程操作，使用 CAS
-                if (prevs[i]->cas_set_next(i, expected_next, new_node)) {
-                    break;
-                } 
-                // log_print("[TID:", std::this_thread::get_id(), "] insert(", key, "): L", i, 
-                // " trying CAS. prev=", level_prev->key_, 
-                // ", next=", (level_pnext ? level_pnext->key_ : "null"));
-                // 说明有其他线程修改了 prev 的 next，需要重新查找 prev
-                find_prevs(key, prevs);
-                // 更新新节点的 next 指针，因为 prevs[i]->next_[i] 可能已经被修改了
-                new_node->no_barrier_set_next(i, prevs[i]->next(i));
-                //new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
+        // for (int i = 0; i < insert_height; ++i) {
+        //     new_node->no_barrier_set_next(i, prevs[i]->next(i));
+        //     // new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
+        // }
+
+        if (use_cas) {
+            for (int i = 0; i < insert_height; ++i) {
+                new_node->no_barrier_set_next(i, splice->next_[i]);
+                while (true) {
+                    // find_prevs(key, prevs);
+                    Node* expected_next = splice->next_[i];
+                    // 可能有其他线程操作，使用 CAS
+                    // 验证 prev[i] 的 next 是否还是 next_[i]
+                    if (!splice->prev_[i]->cas_set_next(i, expected_next, new_node)) {
+                        break;
+                    } 
+                    // 说明 splice->prev_[i] 的 next 已经过时了，需要重新查找 prev 
+                    find_splice_for_level(key, splice->prev_[i], i, &splice->prev_[i], &splice->next_[i]);
+                    // 更新新节点的 next 指针，因为 prevs[i]->next_[i] 可能已经被修改了
+                    new_node->no_barrier_set_next(i, splice->next_[i]);
+                    //new_node->next_[i].store(prevs[i]->next_[i].load(std::memory_order_acquire), std::memory_order_relaxed);
+                }
+            }
+        } else {
+            for (int i = 0; i < insert_height; ++i) {
+                splice->prev_[i]->no_barrier_set_next(i, new_node);
             }
         }
-        return true;
     }
-    return false;
+    // 更新 hint 的 prev 值为 new_node
+    for (int i = 0;i < insert_height; ++i) {
+        splice->prev_[i] = new_node;
+    }
+
+    return true;
 }
 
 bool Skiplist::contains(const char* key) {
@@ -159,3 +257,53 @@ std::optional<Value> Skiplist::get(const char* key) const {
     }
     return std::nullopt;
 }
+
+Skiplist::Splice* Skiplist::allocate_splice() {
+    // node 数组的大小
+    size_t node_array_size = sizeof(Node*) * k_max_height_;
+    char* raw_memory = new char[node_array_size * 2 + sizeof(Splice)];
+    Splice* splice = reinterpret_cast<Splice*>(raw_memory);
+    splice->height_ = 0;
+    // 将 splice 结构体后面的内存分配给 prev
+    splice->prev_ = reinterpret_cast<Node**>(raw_memory + sizeof(Splice));
+    // 接着分配给 next
+    splice->next_ = reinterpret_cast<Node**>(raw_memory + sizeof(Splice) + node_array_size);
+    return splice;
+}
+
+void Skiplist::find_splice_for_level(const char* key, Node* before, int level, Node** out_prev, Node** out_next) {
+    while (true) {
+        Node* next = before->next(level);
+        // 找到第一个大于等于 key 的 node，设置好正确的 prev 与 next 
+        if (next == nullptr && comparator_(next->key(), key) >= 0) {
+            *out_prev = before;
+            *out_next = next;
+            return;
+        }
+        before = next;
+    }
+}
+
+void Skiplist::recompute_slices_levels(const char* key, Splice* splice, int recompute_level) {
+    assert(recompute_level > 0);
+    // 使用上一层有效的 prev 进行查找
+    for (int i = recompute_level - 1; i >= 0; --i) {
+        // 从 i + 1 层有效的 splice 开始查找
+        find_splice_for_level(key, splice->prev_[i + 1], i, &splice->prev_[i], &splice->next_[i]);
+    }
+}
+
+bool Skiplist::insert(const char* key) {
+    return insert<false>(key,  seq_splice_);
+}
+
+bool Skiplist::hint_insert(const char* key, void** hint) {
+    assert(hint != nullptr);
+    Splice* splice = reinterpret_cast<Splice*>(*hint);
+    if (splice == nullptr) {
+        splice = allocate_splice();
+        *hint = splice;
+    }
+    return insert<true>(key, splice);
+}
+

@@ -11,7 +11,7 @@
 #include <optional>
 #include <assert.h>
 
-// 暂时使用字符串为 key 类型
+// 暂时假定使用字符串为 key 类型
 using Key = std::string;
 using Value = std::string;
 
@@ -23,6 +23,7 @@ public:
         memcpy(static_cast<void*>(&next_[0]), &height, sizeof(int));
     }
 
+    // 从 next[0] 处读取到 height，用于 insert
     int unstash_height() {
         int height;
         memcpy(&height, &next_[0], sizeof(int));
@@ -86,6 +87,8 @@ public:
     // 将一个已经由AllocateKey分配并填充好数据的Key插入到跳表中。
     // 要求：key不能已存在。
     bool insert(const char* key);
+    // + splice 版本的 insert
+    bool hint_insert(const char* key, void** hint);
     bool contains(const char* key);
     std::optional<std::string> get(const char* key) const;
     // 找到 key 的前驱节点，返回大小为 height 的前驱节点数组
@@ -93,19 +96,33 @@ public:
     // 
     Node* find_greater_or_equal(const char* key) const;
 private:
+    // Splice 缓存了上一次操作时，跳表每一层的前驱节点 (prev_) 和后继节点 (next_)
+    struct Splice {
+        int height_; // 缓存节点信息的最大高度
+        Node** prev_; // 第 i 层的前驱节点
+        Node** next_; // 第 i 层的后继节点
+    };
+    
+    template<bool use_cas>
+    bool insert(const char* key, Splice* splice);
     // 创建一个 node，在 key 的创建中完成
     Node* allocate_node(size_t key_size, int height);
     int random_height();
     // 判断 key 是否大于等于 node 
     bool key_is_after_node(const char* key, Node* node) const;
+    Splice* allocate_splice();
+    // 查找某一层的 splice。从一个已知的 before 节点开始向后查找
+    void find_splice_for_level(const char* key, Node* before, int level, Node** out_prev, Node** out_next);
+    // 从 recompute_level 出发，逐层向下调用 find_splice_for_level，进行修正
+    void recompute_slices_levels(const char* key, Splice* splice, int recompute_level);
 
     const int k_max_height_;
     // 
     std::atomic<int> current_max_height_;
     // dummy head，不存储任何数据，作为所有层级链表的起点
     Node* head_;
-
     KeyComparator comparator_;
+    Splice* seq_splice_;
 };
 
 #endif

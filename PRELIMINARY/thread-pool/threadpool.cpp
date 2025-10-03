@@ -21,7 +21,7 @@ void LockFreeQueue<T>::push(const T data) {
     Node* old_tail = nullptr;
 
     while (true) { 
-        // 1. 读取当前的 tail 
+        // 1. 读取当前的 tail（因为可能tail还没正确更新，不能直接使用load去CAS） 
         old_tail = m_tail_.load(std::memory_order_acquire);
 
         // 2. 尝试将新节点挂载到原有的 tail 之后（设置为当前 tail 的 next）
