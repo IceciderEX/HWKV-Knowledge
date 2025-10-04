@@ -140,6 +140,7 @@ struct MutableCFOptions {
             options.max_bytes_for_level_multiplier_additional),
         compaction_options_fifo(options.compaction_options_fifo),
         compaction_options_universal(options.compaction_options_universal),
+        compaction_options_tier(options.compaction_options_tier),   // add for tier compaction style
         preclude_last_level_data_seconds(
             options.preclude_last_level_data_seconds),
         preserve_internal_time_seconds(options.preserve_internal_time_seconds),
@@ -311,6 +312,8 @@ struct MutableCFOptions {
   std::vector<int> max_bytes_for_level_multiplier_additional;
   CompactionOptionsFIFO compaction_options_fifo;
   CompactionOptionsUniversal compaction_options_universal;
+  // add for tier compaction style
+  CompactionOptionsTier compaction_options_tier;
   uint64_t preclude_last_level_data_seconds;
   uint64_t preserve_internal_time_seconds;
 

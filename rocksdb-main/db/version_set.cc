@@ -2169,7 +2169,9 @@ void Version::AddIteratorsForLevel(const ReadOptions& read_options,
   bool should_sample = should_sample_file_read();
 
   auto* arena = merge_iter_builder->GetArena();
-  if (level == 0) {
+  // add for tier compaction style
+  // TODO: 是否需要修改具体的逻辑？
+  if (cfd_->ioptions().compaction_style == kCompactionStyleTier || level == 0) {
     // Merge all level zero files together since they may overlap
     std::unique_ptr<TruncatedRangeDelIterator> tombstone_iter = nullptr;
     for (size_t i = 0; i < storage_info_.LevelFilesBrief(0).num_files; i++) {
@@ -3697,6 +3699,24 @@ void VersionStorageInfo::ComputeCompactionScore(
                                  mutable_cf_options.max_bytes_for_level_base);
           }
         }
+
+        // add for tier compaction style
+        // level = 0
+        if (compaction_style_ == kCompactionStyleTier) {
+          // max T files in one level
+          const int T = mutable_cf_options.compaction_options_tier.files_per_tier;
+          if (T <= 0) {
+            score = 0;
+          }
+
+          size_t num_files = 0;
+          for (auto* f : files_[level]) {
+            if (!f->being_compacted) {
+              num_files++;
+            }
+          }
+          score = static_cast<double>(num_files) / T;
+        }
       }
     } else {  // level > 0
       // Compute the ratio of current size to size limit.
@@ -3740,6 +3760,24 @@ void VersionStorageInfo::ComputeCompactionScore(
       } else if (level_total_bytes > MaxBytesForLevel(level)) {
         total_downcompact_bytes +=
             static_cast<double>(level_total_bytes - MaxBytesForLevel(level));
+      }
+
+      // add for tier compaction style
+      // level = 0
+      if (compaction_style_ == kCompactionStyleTier) {
+        // max T files in one level
+        const int T = mutable_cf_options.compaction_options_tier.files_per_tier;
+        if (T <= 0) {
+          score = 0;
+        }
+
+        size_t num_files = 0;
+        for (auto* f : files_[level]) {
+          if (!f->being_compacted) {
+            num_files++;
+          }
+        }
+        score = static_cast<double>(num_files) / T;
       }
     }
     compaction_level_[level] = level;

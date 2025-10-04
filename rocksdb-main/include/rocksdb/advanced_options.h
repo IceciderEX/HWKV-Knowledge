@@ -33,6 +33,8 @@ enum CompactionStyle : char {
   // Disable background compaction. Compaction jobs are submitted
   // via CompactFiles().
   kCompactionStyleNone = 0x3,
+  // Tier based compaction style
+  kCompactionStyleTier = 0x4,
 };
 
 // In Level-based compaction, it Determines which file from a level to be
@@ -65,6 +67,13 @@ struct FileTemperatureAge {
   Temperature temperature = Temperature::kUnknown;
   uint64_t age = 0;
   bool operator==(const FileTemperatureAge& rhs) const = default;
+};
+
+
+struct CompactionOptionsTier {
+  // The number of components to trigger a full level merge.
+  // T
+  int files_per_tier = 5;
 };
 
 struct CompactionOptionsFIFO {
@@ -617,6 +626,12 @@ struct AdvancedColumnFamilyOptions {
   // Dynamic change example:
   // SetOptions("compaction_options_fifo", "{max_table_files_size=100;}")
   CompactionOptionsFIFO compaction_options_fifo;
+
+  // The options for tier compaction style
+  //
+  // Dynamically changeable through SetOptions() API
+  // add for tier compaction style
+  CompactionOptionsTier compaction_options_tier;
 
   // An iteration->Next() sequentially skips over keys with the same
   // user-key unless this option is set. This number specifies the number

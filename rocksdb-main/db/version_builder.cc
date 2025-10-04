@@ -1495,9 +1495,17 @@ class VersionBuilder::Rep {
       SaveSSTFilesTo(vstorage, /* level */ 0, *level_zero_cmp_by_epochno_);
     }
 
-    for (int level = 1; level < num_levels_; ++level) {
-      SaveSSTFilesTo(vstorage, level, *level_nonzero_cmp_);
+    // add for tier compaction style
+    if (cfd_->ioptions().compaction_style == kCompactionStyleTier) {
+      for (int level = 1; level < num_levels_; ++level) {
+        SaveSSTFilesTo(vstorage, level, *level_zero_cmp_by_seqno_);
+      }
+    } else {
+      for (int level = 1; level < num_levels_; ++level) {
+        SaveSSTFilesTo(vstorage, level, *level_nonzero_cmp_);
+      }
     }
+
   }
 
   void SaveCompactCursorsTo(VersionStorageInfo* vstorage) const {
