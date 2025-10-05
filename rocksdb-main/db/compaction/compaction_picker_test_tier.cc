@@ -169,3 +169,5 @@ TEST_F(TieringCompactionPickerTest, PickCompaction_AbortsIfFileIsBusy) {
   // 3. Assert
   ASSERT_EQ(compaction, nullptr); // 因为有文件被占用，不应生成 Compaction 任务
 }
+
+}

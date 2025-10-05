@@ -283,7 +283,7 @@ Compaction* TierCompactionBuilder::GetCompaction() {
  * Given a level, finds the path where levels up to it will fit in levels
  * up to and including this path
  */
-uint32_t LevelCompactionBuilder::GetPathId(
+uint32_t TierCompactionBuilder::GetPathId(
     const ImmutableCFOptions& ioptions,
     const MutableCFOptions& mutable_cf_options, int level) {
   uint32_t p = 0;
@@ -332,7 +332,7 @@ uint32_t LevelCompactionBuilder::GetPathId(
   return p;
 }
 
-bool LevelCompactionBuilder::TryPickL0TrivialMove() {
+bool TierCompactionBuilder::TryPickL0TrivialMove() {
   if (vstorage_->base_level() <= 0) {
     return false;
   }
@@ -401,7 +401,7 @@ bool LevelCompactionBuilder::TryPickL0TrivialMove() {
   return false;
 }
 
-bool LevelCompactionBuilder::TryExtendNonL0TrivialMove(int start_index,
+bool TierCompactionBuilder::TryExtendNonL0TrivialMove(int start_index,
                                                        bool only_expand_right) {
   if (start_level_inputs_.size() == 1 &&
       (ioptions_.db_paths.empty() || ioptions_.db_paths.size() == 1) &&
@@ -488,7 +488,7 @@ bool LevelCompactionBuilder::TryExtendNonL0TrivialMove(int start_index,
   return false;
 }
 
-bool LevelCompactionBuilder::PickFileToCompact() {
+bool TierCompactionBuilder::PickFileToCompact() {
   // level 0 files are overlapping. So we cannot pick more
   // than one concurrent compactions at this level. This
   // could be made better by looking at key-ranges that are
@@ -601,7 +601,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
   return start_level_inputs_.size() > 0;
 }
 
-bool LevelCompactionBuilder::PickIntraL0Compaction() {
+bool TierCompactionBuilder::PickIntraL0Compaction() {
   start_level_inputs_.clear();
   const std::vector<FileMetaData*>& level_files =
       vstorage_->LevelFiles(0 /* level */);
@@ -619,7 +619,7 @@ bool LevelCompactionBuilder::PickIntraL0Compaction() {
                                &start_level_inputs_);
 }
 
-bool LevelCompactionBuilder::PickSizeBasedIntraL0Compaction() {
+bool TierCompactionBuilder::PickSizeBasedIntraL0Compaction() {
   assert(start_level_ == 0);
   int base_level = vstorage_->base_level();
   if (base_level <= 0) {
@@ -674,13 +674,13 @@ bool LevelCompactionBuilder::PickSizeBasedIntraL0Compaction() {
 }
 }  // namespace
 
-Compaction* LevelCompactionPicker::PickCompaction(
+Compaction* TierCompactionPicker::PickCompaction(
     const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
     const MutableDBOptions& mutable_db_options,
     const std::vector<SequenceNumber>& /*existing_snapshots */,
     const SnapshotChecker* /*snapshot_checker*/, VersionStorageInfo* vstorage,
     LogBuffer* log_buffer, bool /* require_max_output_level*/) {
-  LevelCompactionBuilder builder(cf_name, vstorage, this, log_buffer,
+  TierCompactionBuilder builder(cf_name, vstorage, this, log_buffer,
                                  mutable_cf_options, ioptions_,
                                  mutable_db_options);
   return builder.PickCompaction();
