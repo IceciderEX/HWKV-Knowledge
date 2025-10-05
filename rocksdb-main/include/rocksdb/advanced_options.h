@@ -70,10 +70,13 @@ struct FileTemperatureAge {
 };
 
 
+// add for tier compaction style
 struct CompactionOptionsTier {
   // The number of components to trigger a full level merge.
   // T
   int files_per_tier = 5;
+
+  bool operator==(const CompactionOptionsTier& rhs) const = default;
 };
 
 struct CompactionOptionsFIFO {
