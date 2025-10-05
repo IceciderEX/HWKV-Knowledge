@@ -1841,6 +1841,8 @@ FilterBitsBuilder* RibbonFilterPolicy::GetBuilderWithContext(
   if (bloom_before_level < INT_MAX) {
     switch (context.compaction_style) {
       case kCompactionStyleLevel:
+      // add for tier compaction style
+      case kCompactionStyleTier:
       case kCompactionStyleUniversal: {
         if (context.reason == TableFileCreationReason::kFlush) {
           // Treat flush as level -1
