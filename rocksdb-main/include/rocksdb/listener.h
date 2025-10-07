@@ -135,6 +135,9 @@ enum class CompactionReason : int {
   // [Level] Automatic compaction within bottommost level to cleanup duplicate
   // versions of same user key, usually due to a released snapshot.
   kBottommostFiles,
+  // [Tier] number of files in a level > files_per_tier
+  // add for tier compaction style
+  kLevelFilesNum,
   // Compaction based on TTL
   kTtl,
   // According to the comments in flush_job.cc, RocksDB treats flush as

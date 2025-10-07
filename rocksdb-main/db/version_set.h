@@ -257,7 +257,12 @@ class VersionStorageInfo {
   int CompactionScoreLevel(int idx) const { return compaction_level_[idx]; }
 
   // Return idx'th highest score
-  double CompactionScore(int idx) const { return compaction_score_[idx]; }
+  double CompactionScore(int idx) const {
+    if (static_cast<size_t>(idx) >= compaction_score_.size() || idx < 0) {
+      return 0.0;
+    }
+    return compaction_score_[idx]; 
+  }
 
   void GetOverlappingInputs(
       int level, const InternalKey* begin,  // nullptr means before all keys

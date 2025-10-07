@@ -3395,6 +3395,10 @@ int VersionStorageInfo::MaxInputLevel() const {
   if (compaction_style_ == kCompactionStyleLevel) {
     return num_levels() - 2;
   }
+  // add for tier compaction style
+  if (compaction_style_ == kCompactionStyleTier) {
+    return num_levels() - 2;
+  }
   return 0;
 }
 
@@ -3763,7 +3767,7 @@ void VersionStorageInfo::ComputeCompactionScore(
       }
 
       // add for tier compaction style
-      // level = 0
+      // level != 0
       if (compaction_style_ == kCompactionStyleTier) {
         // max T files in one level
         const int T = mutable_cf_options.compaction_options_tier.files_per_tier;
