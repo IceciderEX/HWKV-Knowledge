@@ -23,6 +23,7 @@ class TablePropertiesCollectorFactory;
 class TableFactory;
 struct Options;
 
+// add for tier compaction style
 enum CompactionStyle : char {
   // level based compaction style
   kCompactionStyleLevel = 0x0,

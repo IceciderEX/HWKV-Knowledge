@@ -587,10 +587,9 @@ class VersionBuilder::Rep {
           return s;
         }
       }
-
       // Check L1 and up
-
-      for (int level = 1; level < num_levels_; ++level) {
+      if (cfd_->ioptions().compaction_style != kCompactionStyleTier) {
+        for (int level = 1; level < num_levels_; ++level) {
         auto checker = [this, level, icmp](const FileMetaData* lhs,
                                            const FileMetaData* rhs) {
           assert(lhs);
@@ -626,6 +625,7 @@ class VersionBuilder::Rep {
           return s;
         }
       }
+    }
     }
 
     // Make sure that all blob files in the version have non-garbage data and

@@ -63,8 +63,10 @@ struct Options;
 struct DbPath;
 
 using FileTypeSet = SmallEnumSet<FileType, FileType::kBlobFile>;
+// add for tier compaction style
+// FIX: Contains() range problem
 using CompactionStyleSet =
-    SmallEnumSet<CompactionStyle, CompactionStyle::kCompactionStyleNone>;
+    SmallEnumSet<CompactionStyle, CompactionStyle::kCompactionStyleTier>;
 
 struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // The function recovers options to a previous version. Only 4.6 or later

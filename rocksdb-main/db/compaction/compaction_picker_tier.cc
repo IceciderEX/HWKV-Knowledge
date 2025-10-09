@@ -186,7 +186,7 @@ class TierCompactionBuilder {
 
 // 判断是否有 level 中文件数超过 T 的情况
 // 如果没有 level 中文件数超过 T 的情况，就返回 nullptr
-// 构造Compaction对象
+// 构造 Compaction对象
 // add for tier compaction style
 Compaction* TierCompactionBuilder::PickCompaction() {
     const int T = mutable_cf_options_.compaction_options_tier.files_per_tier;
@@ -195,8 +195,7 @@ Compaction* TierCompactionBuilder::PickCompaction() {
         const auto& level_files = vstorage_->LevelFiles(level);
         bool triggered_by_size = false;
         bool triggered_by_mark = false;
-
-        // 1. 检查文件数量是否达到阈值 T
+        // 检查文件数量是否达到阈值 T
         if (T > 0) {
             size_t num_non_compacting_files = 0;
             for (const auto* f : level_files) {
@@ -208,7 +207,6 @@ Compaction* TierCompactionBuilder::PickCompaction() {
                 triggered_by_size = true;
             }
         }
-        
         // 2. 检查是否有文件被标记
         if (!triggered_by_size) {
             for (const auto* f : level_files) {
@@ -218,13 +216,9 @@ Compaction* TierCompactionBuilder::PickCompaction() {
                 }
             }
         }
-
-        // 如果当前层级被触发，则准备进行合并
         if (triggered_by_size || triggered_by_mark) {
             start_level_ = level;
             output_level_ = start_level_ + 1;
-            
-            // 准备输入文件列表 (compaction_inputs_)
             compaction_inputs_.resize(1);
             compaction_inputs_[0].level = start_level_;
 
@@ -242,26 +236,15 @@ Compaction* TierCompactionBuilder::PickCompaction() {
                 compaction_inputs_.clear();
                 continue;
             }
-
-            // 检查输出冲突
-            if (compaction_picker_->FilesRangeOverlapWithCompaction(
-                    compaction_inputs_, output_level_, Compaction::kInvalidLevel)) {
-                compaction_inputs_.clear();
-                continue;
-            }
-            
             // 设置一下原因
             compaction_reason_ = triggered_by_size
                                      ? CompactionReason::kLevelFilesNum
                                      : CompactionReason::kFilesMarkedForCompaction;
-            
             Compaction* c = GetCompaction();
             TEST_SYNC_POINT_CALLBACK("TierCompactionPicker::PickCompaction:Return", c);
             return c;
         }
     }
-
-    // 没有找到任何需要合并的层
     return nullptr;
 }
 

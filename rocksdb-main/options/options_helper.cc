@@ -347,12 +347,14 @@ void UpdateColumnFamilyOptions(const ImmutableCFOptions& ioptions,
   // * max_file_size
 }
 
+// add for tier compaction style
 std::map<CompactionStyle, std::string>
     OptionsHelper::compaction_style_to_string = {
         {kCompactionStyleLevel, "kCompactionStyleLevel"},
         {kCompactionStyleUniversal, "kCompactionStyleUniversal"},
         {kCompactionStyleFIFO, "kCompactionStyleFIFO"},
-        {kCompactionStyleNone, "kCompactionStyleNone"}};
+        {kCompactionStyleNone, "kCompactionStyleNone"},
+        {kCompactionStyleTier, "kCompactionStyleTier"}};
 
 std::map<CompactionPri, std::string> OptionsHelper::compaction_pri_to_string = {
     {kByCompensatedSize, "kByCompensatedSize"},
@@ -942,12 +944,14 @@ std::unordered_map<std::string, EncodingType>
     OptionsHelper::encoding_type_string_map = {{"kPlain", kPlain},
                                                {"kPrefix", kPrefix}};
 
+// add for tier compaction style                                               
 std::unordered_map<std::string, CompactionStyle>
     OptionsHelper::compaction_style_string_map = {
         {"kCompactionStyleLevel", kCompactionStyleLevel},
         {"kCompactionStyleUniversal", kCompactionStyleUniversal},
         {"kCompactionStyleFIFO", kCompactionStyleFIFO},
-        {"kCompactionStyleNone", kCompactionStyleNone}};
+        {"kCompactionStyleNone", kCompactionStyleNone},
+        {"kCompactionStyleTier", kCompactionStyleTier}};
 
 std::unordered_map<std::string, CompactionPri>
     OptionsHelper::compaction_pri_string_map = {

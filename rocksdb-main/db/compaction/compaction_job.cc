@@ -79,6 +79,9 @@ const char* GetCompactionReasonString(CompactionReason compaction_reason) {
       return "FIFOReduceNumFiles";
     case CompactionReason::kFIFOTtl:
       return "FIFOTtl";
+    // add for tier compaction style
+    case CompactionReason::kLevelFilesNum:
+      return "TierFileNum";
     case CompactionReason::kManualCompaction:
       return "ManualCompaction";
     case CompactionReason::kFilesMarkedForCompaction:

@@ -255,6 +255,9 @@ DEFINE_string(
     "GetApproximateMemTableStats, ideally\n"
     "after fillrandom, where actual answer is batch_size");
 
+// add for tier compaction style
+DEFINE_int32(files_per_tier, 4, "Number of tier files per level");  
+
 DEFINE_int64(num, 1000000, "Number of key/values to place in database");
 
 DEFINE_int64(numdistinct, 1000,
