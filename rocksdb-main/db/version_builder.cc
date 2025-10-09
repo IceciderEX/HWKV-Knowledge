@@ -588,6 +588,7 @@ class VersionBuilder::Rep {
         }
       }
       // Check L1 and up
+      // add for tier compaction style
       if (cfd_->ioptions().compaction_style != kCompactionStyleTier) {
         for (int level = 1; level < num_levels_; ++level) {
         auto checker = [this, level, icmp](const FileMetaData* lhs,
